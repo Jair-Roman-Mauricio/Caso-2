@@ -132,4 +132,175 @@ public class OwnerServiceTest {
 		// Verificar que se haya encontrado el owner que creamos
 		assertTrue(foundMatch, "El owner creado debería estar entre los resultados de la búsqueda");
 	}
+
+	/**
+	 * Prueba para verificar la ACTUALIZACIÓN COMPLETA de un owner.
+	 * Se modifican todos los campos y se verifica que los cambios se persistan correctamente.
+	 */
+	@Test
+	public void testUpdateOwner() {
+		// Arrange: crear y persistir un owner inicial
+		Owner created = ownerService.create(testOwner);
+		Integer id = created.getId();
+		assertNotNull(id, "El ID no debería ser nulo después de crear el owner");
+		
+		// Guardar valores originales para logging
+		log.info("OWNER ORIGINAL: " + created);
+
+		// Modificar todos los campos del owner
+		created.setFirstName("Jane");
+		created.setLastName("Smith");
+		created.setAddress("742 Evergreen Terrace");
+		created.setCity("Shelbyville");
+		created.setTelephone("555-9876");
+
+		// Act: actualizar el owner con los nuevos datos
+		Owner updated = null;
+		try {
+			updated = ownerService.update(created);
+			log.info("OWNER UPDATED: " + updated);
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al actualizar un owner existente: " + e.getMessage());
+		}
+
+		// Assert: recuperar desde la BD y comparar todos los campos
+		try {
+			Owner found = ownerService.findById(id);
+			
+			// Verificar que el ID se mantiene
+			assertEquals(id, found.getId(), "El ID debería mantenerse tras la actualización");
+			
+			// Verificar que todos los campos se actualizaron correctamente
+			assertEquals("Jane", found.getFirstName(), "El firstName debería actualizarse a 'Jane'");
+			assertEquals("Smith", found.getLastName(), "El lastName debería actualizarse a 'Smith'");
+			assertEquals("742 Evergreen Terrace", found.getAddress(), "El address debería actualizarse a '742 Evergreen Terrace'");
+			assertEquals("Shelbyville", found.getCity(), "El city debería actualizarse a 'Shelbyville'");
+			assertEquals("555-9876", found.getTelephone(), "El telephone debería actualizarse a '555-9876'");
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al recuperar un owner existente: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Prueba para verificar la ACTUALIZACIÓN PARCIAL de un owner.
+	 * Solo se modifican algunos campos y se valida que los demás permanezcan iguales.
+	 */
+	@Test
+	public void testUpdateOwnerPartialData() {
+		// Arrange: crear y persistir un owner inicial
+		Owner created = ownerService.create(testOwner);
+		Integer id = created.getId();
+		assertNotNull(id, "El ID no debería ser nulo después de crear el owner");
+
+		// Guardar valores originales para comparar campos no modificados
+		String originalFirstName = created.getFirstName();
+		String originalLastName = created.getLastName();
+		String originalCity = created.getCity();
+		
+		log.info("OWNER ANTES DE ACTUALIZACIÓN PARCIAL: " + created);
+
+		// Modificar solo algunos campos (address y telephone)
+		created.setAddress("Av. Los Próceres 123");
+		created.setTelephone("999-111-222");
+
+		// Act: actualizar el owner con cambios parciales
+		try {
+			ownerService.update(created);
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al actualizar un owner existente: " + e.getMessage());
+		}
+
+		// Assert: recuperar desde la BD y validar cambios parciales
+		try {
+			Owner found = ownerService.findById(id);
+			log.info("OWNER DESPUÉS DE ACTUALIZACIÓN PARCIAL: " + found);
+			
+			// Verificar que los campos modificados se actualizaron
+			assertEquals("Av. Los Próceres 123", found.getAddress(), "El address debería actualizarse a 'Av. Los Próceres 123'");
+			assertEquals("999-111-222", found.getTelephone(), "El telephone debería actualizarse a '999-111-222'");
+			
+			// Verificar que los campos no modificados permanecen iguales
+			assertEquals(originalFirstName, found.getFirstName(), "El firstName no debería cambiar");
+			assertEquals(originalLastName, found.getLastName(), "El lastName no debería cambiar");
+			assertEquals(originalCity, found.getCity(), "El city no debería cambiar");
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al recuperar un owner existente: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Pruebas de validaciones y casos edge en actualización.
+	 * Incluye: actualizar owner inexistente, actualizar con datos nulos, etc.
+	 */
+	@Test
+	public void testUpdateOwnerValidations() {
+		// Arrange: crear un owner base para algunas pruebas
+		Owner created = ownerService.create(testOwner);
+		Integer id = created.getId();
+		assertNotNull(id, "El ID no debería ser nulo después de crear el owner");
+
+		// Caso 1: Actualizar con datos nulos en algunos campos
+		// (El esquema actual permite nulos, por lo que debería funcionar)
+		created.setAddress(null);
+		created.setTelephone(null);
+
+		// Act: actualizar con campos nulos
+		try {
+			ownerService.update(created);
+			log.info("OWNER ACTUALIZADO CON CAMPOS NULOS: " + created);
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al actualizar un owner existente: " + e.getMessage());
+		}
+
+		// Assert: verificar que los campos se guardaron como nulos
+		try {
+			Owner found = ownerService.findById(id);
+			assertEquals(null, found.getAddress(), "El address debería poder ser nulo según el esquema actual");
+			assertEquals(null, found.getTelephone(), "El telephone debería poder ser nulo según el esquema actual");
+		} catch (OwnerNotFoundException e) {
+			fail("No debería lanzarse OwnerNotFoundException al recuperar un owner existente: " + e.getMessage());
+		}
+
+		// Caso 2: Intentar actualizar un owner inexistente (debería lanzar excepción)
+		Owner nonExistentOwner = new Owner();
+		nonExistentOwner.setId(999999); // ID que no existe en BD
+		nonExistentOwner.setFirstName("Ghost");
+		nonExistentOwner.setLastName("Owner");
+		nonExistentOwner.setAddress("Unknown");
+		nonExistentOwner.setCity("Nowhere");
+		nonExistentOwner.setTelephone("000-0000");
+
+		// Act & Assert: verificar que se lanza OwnerNotFoundException
+		try {
+			ownerService.update(nonExistentOwner);
+			fail("Debería lanzarse OwnerNotFoundException al intentar actualizar un owner inexistente");
+		} catch (OwnerNotFoundException e) {
+			// Excepción esperada
+			log.info("EXCEPCIÓN ESPERADA AL ACTUALIZAR OWNER INEXISTENTE: " + e.getMessage());
+			assertNotNull(e.getMessage(), "El mensaje de la excepción no debería ser nulo");
+			assertTrue(e.getMessage().contains("999999"), "El mensaje debería contener el ID del owner inexistente");
+		}
+
+		// Caso 3: Intentar actualizar un owner con ID nulo (debería lanzar excepción)
+		Owner ownerWithNullId = new Owner();
+		ownerWithNullId.setId(null);
+		ownerWithNullId.setFirstName("Null");
+		ownerWithNullId.setLastName("ID");
+		ownerWithNullId.setAddress("Test Address");
+		ownerWithNullId.setCity("Test City");
+		ownerWithNullId.setTelephone("123-4567");
+
+		// Act & Assert: verificar que se lanza NullPointerException o OwnerNotFoundException
+		try {
+			ownerService.update(ownerWithNullId);
+			fail("Debería lanzarse una excepción al intentar actualizar un owner con ID nulo");
+		} catch (OwnerNotFoundException e) {
+			// Excepción esperada
+			log.info("EXCEPCIÓN ESPERADA AL ACTUALIZAR OWNER CON ID NULO: " + e.getMessage());
+			assertNotNull(e.getMessage(), "El mensaje de la excepción no debería ser nulo");
+		} catch (NullPointerException e) {
+			// También es aceptable en este caso
+			log.info("NULLPOINTEREXCEPTION AL ACTUALIZAR OWNER CON ID NULO: " + e.getMessage());
+		}
+	}
 }
