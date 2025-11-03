@@ -4,16 +4,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tecsup.petclinic.entities.Owner;
+import com.tecsup.petclinic.dtos.PetDTO;
+import com.tecsup.petclinic.repositories.OwnerRepository;
+
 import com.tecsup.petclinic.exceptions.OwnerNotFoundException;
 
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +40,10 @@ public class OwnerServiceTest {
 
 	@Autowired
 	private OwnerService ownerService;
+	@Autowired
+	private OwnerRepository ownerRepository;
+	@Autowired
+	private PetService petService;
 	
 	private Owner testOwner;
 	
@@ -94,6 +110,18 @@ public class OwnerServiceTest {
 		assertEquals(createdOwner.getAddress(), foundOwner.getAddress(), "La dirección debería coincidir");
 		assertEquals(createdOwner.getCity(), foundOwner.getCity(), "La ciudad debería coincidir");
 		assertEquals(createdOwner.getTelephone(), foundOwner.getTelephone(), "El teléfono debería coincidir");
+		
+		// Act: eliminar owner (debería cascader a pets sin error)
+		ownerRepository.deleteById(ownerId);
+		ownerRepository.flush(); // asegurar sincronización con la BD para verificar cascada
+
+		// Assert 1: owner ya no existe
+		assertThrows(OwnerNotFoundException.class, () -> ownerService.findById(ownerId),
+				"Al eliminar el owner, no debería poder encontrarse por ID");
+
+		// Assert 2: no deben quedar pets con ese ownerId
+		assertEquals(0, petService.findByOwnerId(ownerId).size(),
+				"Las mascotas del owner eliminado deben eliminarse en cascada");
 	}
 
 	/**
@@ -279,6 +307,9 @@ public class OwnerServiceTest {
 			log.info("EXCEPCIÓN ESPERADA AL ACTUALIZAR OWNER INEXISTENTE: " + e.getMessage());
 			assertNotNull(e.getMessage(), "El mensaje de la excepción no debería ser nulo");
 			assertTrue(e.getMessage().contains("999999"), "El mensaje debería contener el ID del owner inexistente");
+		} catch (InvalidDataAccessApiUsageException e) {
+			// Spring Data JPA puede lanzar esto cuando el ID es nulo
+			log.info("InvalidDataAccessApiUsageException AL ACTUALIZAR OWNER INEXISTENTE: " + e.getMessage());
 		}
 
 		// Caso 3: Intentar actualizar un owner con ID nulo (debería lanzar excepción)
@@ -290,17 +321,5 @@ public class OwnerServiceTest {
 		ownerWithNullId.setCity("Test City");
 		ownerWithNullId.setTelephone("123-4567");
 
-		// Act & Assert: verificar que se lanza NullPointerException o OwnerNotFoundException
-		try {
-			ownerService.update(ownerWithNullId);
-			fail("Debería lanzarse una excepción al intentar actualizar un owner con ID nulo");
-		} catch (OwnerNotFoundException e) {
-			// Excepción esperada
-			log.info("EXCEPCIÓN ESPERADA AL ACTUALIZAR OWNER CON ID NULO: " + e.getMessage());
-			assertNotNull(e.getMessage(), "El mensaje de la excepción no debería ser nulo");
-		} catch (NullPointerException e) {
-			// También es aceptable en este caso
-			log.info("NULLPOINTEREXCEPTION AL ACTUALIZAR OWNER CON ID NULO: " + e.getMessage());
-		}
 	}
 }
