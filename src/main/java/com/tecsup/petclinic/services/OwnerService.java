@@ -31,4 +31,12 @@ public interface OwnerService {
      * @return lista de owners
      */
     List<Owner> findByLastName(String lastName);
+
+    /**
+     * Actualizar un owner existente
+     * @param owner
+     * @return owner actualizado
+     * @throws OwnerNotFoundException
+     */
+    Owner update(Owner owner) throws OwnerNotFoundException;
 }

@@ -46,4 +46,17 @@ public class OwnerServiceImpl implements OwnerService {
         owners.forEach(owner -> log.info("Owner: {}", owner));
         return owners;
     }
+
+    @Override
+    public Owner update(Owner owner) throws OwnerNotFoundException {
+        // Verificar que el owner existe antes de actualizar
+        Optional<Owner> existingOwner = ownerRepository.findById(owner.getId());
+        
+        if (!existingOwner.isPresent()) {
+            throw new OwnerNotFoundException("Owner not found with id: " + owner.getId());
+        }
+        
+        // Actualizar el owner
+        return ownerRepository.save(owner);
+    }
 }
